@@ -1,0 +1,13 @@
+type;id;name;price
+P;P-201;Laptop;35000.50
+P;P-202;Keyboard;2500.00
+W;W-001;Main Warehouse
+P;P-203;Mouse;800.99
+W;W-002;Backup Warehouse
+P;P-204;Monitor;12000.00
+P;P-205;Headphones;3200.50
+W;W-003;Small Warehouse
+P;P-206;SSD 1TB;3800.00
+X;X-001;Unknown
+P;P-207;Broken Product;abc
+W;W-004;

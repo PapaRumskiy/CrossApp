@@ -1,0 +1,14 @@
+id;name;price
+P-001;Laptop;35000.50
+P-002;Keyboard;2500.00
+P-003;Mouse;800.99
+P-004;Monitor;12000.00
+P-005;Headphones;3200.50
+P-006;Web Camera;2100.00
+P-007;Microphone;4500.00
+P-008;SSD 1TB;3800.00
+P-009;RAM 16GB;2200.00
+P-010;USB Hub;900.00
+P-011;Broken Product
+P-012;Wrong Price;abc
+P-013;;1500.00
