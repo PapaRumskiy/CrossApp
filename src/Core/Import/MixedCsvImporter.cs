@@ -22,7 +22,8 @@ public static class MixedCsvImporter
             if (string.IsNullOrWhiteSpace(line))
                 continue;
 
-            if (number == 1)
+            if (number == 1 &&
+                line.StartsWith("type;", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             switch (ParseLine(line))
@@ -52,6 +53,18 @@ public static class MixedCsvImporter
 
         return parts switch
         {
+            ["W", var id, var name] =>
+                string.IsNullOrWhiteSpace(id) ||
+                string.IsNullOrWhiteSpace(name)
+                    ? new ParseFailed("ідентифікатор або назва складу порожні")
+                    : new WarehouseOk(new WarehouseDto(id, name)),
+
+            ["W", var id, var name, ""] =>
+                string.IsNullOrWhiteSpace(id) ||
+                string.IsNullOrWhiteSpace(name)
+                    ? new ParseFailed("ідентифікатор або назва складу порожні")
+                    : new WarehouseOk(new WarehouseDto(id, name)),
+
             ["P", _, "", _] =>
                 new ParseFailed("назва товару порожня"),
 
@@ -71,13 +84,6 @@ public static class MixedCsvImporter
                     out decimal parsedPrice)
                 => new ProductOk(
                     new ProductDto(id, name, parsedPrice)),
-
-            ["W", _, ""] =>
-                new ParseFailed("назва складу порожня"),
-
-            ["W", var id, var name] =>
-                new WarehouseOk(
-                    new WarehouseDto(id, name)),
 
             [var type, ..] =>
                 new ParseFailed(

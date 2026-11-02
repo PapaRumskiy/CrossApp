@@ -1,6 +1,14 @@
 ﻿using Core.Dto;
 using Core.Import;
 
+
+if (args.Length > 0 && args[0] == "--lab04")
+{
+    Lab04Demo.Run();
+    return 0;
+}
+
+
 string path = args.Length > 0
     ? args[0]
     : Path.Combine("data", "sample.csv");
