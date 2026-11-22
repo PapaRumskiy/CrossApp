@@ -3,6 +3,21 @@ using Core.Import;
 using Core.Services;
 using Core.Storage;
 
+if (args.Length > 0 && args[0] == "--lab06")
+{
+    Console.OutputEncoding = System.Text.Encoding.UTF8;
+    try
+    {
+        Lab06Demo.Run();
+        return 0;
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return 1;
+    }
+}
+
 if (args.Length > 0 && args[0] == "--lab05")
 {
     Console.OutputEncoding = System.Text.Encoding.UTF8;

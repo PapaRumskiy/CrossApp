@@ -1,12 +1,17 @@
 using Core.Abstractions;
 using Core.Domain;
+using Core.Events;
 
 namespace Core.Services;
 
-public sealed class OrderService(IOrderStore store)
+public sealed class OrderService(IOrderStore store, INotificationSink? sink)
 {
     private readonly IOrderStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly object _gate = new();
+
+    public OrderService(IOrderStore store) : this(store, null) { }
+
+    public event EventHandler<OrderChangedEventArgs>? Changed;
 
     public Order CreateOrder(string id, string customerId)
     {
@@ -21,20 +26,29 @@ public sealed class OrderService(IOrderStore store)
             _store.Add(order);
         }
 
+        RaiseChanged(order, OrderChangeKind.Created);
         return order;
     }
 
     public void AddLine(string id, string productId, string name, decimal price, int quantity) =>
-        Change(id, order => order.AddLine(productId, name, price, quantity));
+        Change(id, OrderChangeKind.LineAdded, order => order.AddLine(productId, name, price, quantity));
 
-    public void Confirm(string id) => Change(id, order => order.Confirm());
+    public void Confirm(string id) => Change(id, OrderChangeKind.Confirmed, order => order.Confirm());
 
-    public void Cancel(string id) => Change(id, order => order.Cancel());
+    public void Cancel(string id) => Change(id, OrderChangeKind.Cancelled, order => order.Cancel());
 
     public bool Remove(string id)
     {
+        Order? order;
         lock (_gate)
-            return _store.Remove(id);
+        {
+            order = Find(id);
+            if (order is null || !_store.Remove(id))
+                return false;
+        }
+
+        RaiseChanged(order, OrderChangeKind.Removed);
+        return true;
     }
 
     public IReadOnlyList<Order> All() => _store.List();
@@ -47,13 +61,27 @@ public sealed class OrderService(IOrderStore store)
         return All().Where(predicate).ToArray();
     }
 
-    private void Change(string id, Action<Order> operation)
+    private void Change(string id, OrderChangeKind kind, Action<Order> operation)
     {
+        Order order;
         lock (_gate)
         {
-            Order order = Find(id) ?? throw new KeyNotFoundException($"Замовлення {id} не знайдено.");
+            order = Find(id) ?? throw new KeyNotFoundException($"Замовлення {id} не знайдено.");
             operation(order);
             _store.Update(order);
         }
+
+        RaiseChanged(order, kind);
+    }
+
+    private void RaiseChanged(Order order, OrderChangeKind kind)
+    {
+        if (Changed is null && sink is null)
+            return;
+
+        var change = new OrderChangedEventArgs(
+            order.Id, order.CustomerId, kind, order.Lines.Count, order.Total, order.Status, DateTimeOffset.UtcNow);
+        Changed?.Invoke(this, change);
+        sink?.Notify(change);
     }
 }
