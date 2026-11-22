@@ -58,4 +58,8 @@ nunit-*.xml
 
 publish/
 
+# Lab 05 local order storage
+/data/orders.json
+/data/.orders.json.*.tmp
+
 звіти/

@@ -1,5 +1,25 @@
 ﻿using Core.Dto;
 using Core.Import;
+using Core.Services;
+using Core.Storage;
+
+if (args.Length > 0 && args[0] == "--lab05")
+{
+    Console.OutputEncoding = System.Text.Encoding.UTF8;
+    try
+    {
+        var store = StoreFactory.Create(args);
+        var cached = new CachingOrderStore(store);
+        var service = new OrderService(cached);
+        Lab05Demo.Run(service, store.GetType().Name, cached);
+        return 0;
+    }
+    catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return 1;
+    }
+}
 
 
 if (args.Length > 0 && args[0] == "--lab04")

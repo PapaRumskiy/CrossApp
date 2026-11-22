@@ -26,15 +26,20 @@ public sealed class CustomerOrderService
             throw new InvalidOperationException(
                 $"Замовлення {order.Id} вже зареєстровано");
 
-        int activeCount = _orders.Count(o =>
-            o.CustomerId == customer.Id &&
+        EnsureCanRegister(_orders, customer.Id);
+        _orders.Add(order);
+    }
+
+    internal static void EnsureCanRegister(IEnumerable<Order> orders, string customerId)
+    {
+        int activeCount = orders.Count(o =>
+            o.CustomerId == customerId &&
             o.Status != OrderStatus.Cancelled);
 
         if (activeCount >= MaxActiveOrders)
             throw new InvalidOperationException(
-                $"Клієнт {customer.Id} вже має " +
+                $"Клієнт {customerId} вже має " +
                 $"{MaxActiveOrders} активних замовлень");
 
-        _orders.Add(order);
     }
 }
