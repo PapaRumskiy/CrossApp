@@ -3,6 +3,12 @@ using Core.Import;
 using Core.Services;
 using Core.Storage;
 
+if (ReportCommands.CanHandle(args))
+{
+    Console.OutputEncoding = System.Text.Encoding.UTF8;
+    return ReportCommands.Run(args);
+}
+
 if (args.Length > 0 && args[0] == "--lab06")
 {
     Console.OutputEncoding = System.Text.Encoding.UTF8;
