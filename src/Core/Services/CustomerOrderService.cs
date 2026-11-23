@@ -23,7 +23,7 @@ public sealed class CustomerOrderService
                 nameof(order));
 
         if (_orders.Any(o => o.Id == order.Id))
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Замовлення {order.Id} вже зареєстровано");
 
         EnsureCanRegister(_orders, customer.Id);
@@ -37,7 +37,7 @@ public sealed class CustomerOrderService
             o.Status != OrderStatus.Cancelled);
 
         if (activeCount >= MaxActiveOrders)
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Клієнт {customerId} вже має " +
                 $"{MaxActiveOrders} активних замовлень");
 

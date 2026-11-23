@@ -81,7 +81,7 @@ public sealed class FileOrderStore : IOrderStore
         {
             return new InMemoryOrderStore();
         }
-        catch (Exception ex) when (ex is JsonException or ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is JsonException or ArgumentException or InvalidOperationException or DomainException)
         {
             throw new InvalidDataException($"Некоректні дані у файлі «{_path}». {ex.Message}", ex);
         }

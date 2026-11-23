@@ -49,7 +49,7 @@ public sealed class Order
         int quantity)
     {
         if (Status != OrderStatus.Draft)
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Не можна додавати товари: " +
                 $"замовлення {Id} має статус {Status}");
 
@@ -66,12 +66,12 @@ public sealed class Order
     public void Confirm()
     {
         if (Status != OrderStatus.Draft)
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Не можна підтвердити замовлення {Id}: " +
                 $"поточний статус {Status}");
 
         if (_lines.Count == 0)
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Не можна підтвердити порожнє замовлення {Id}");
 
         Status = OrderStatus.Confirmed;
@@ -85,15 +85,15 @@ public sealed class Order
             OrderStatus.Draft => OrderStatus.Cancelled,
 
             OrderStatus.Confirmed =>
-                throw new InvalidOperationException(
+                throw new DomainException(
                     $"Не можна скасувати підтверджене " +
                     $"замовлення {Id}"),
 
             OrderStatus.Cancelled =>
-                throw new InvalidOperationException(
+                throw new DomainException(
                     $"Замовлення {Id} вже скасоване"),
 
-            _ => throw new InvalidOperationException(
+            _ => throw new DomainException(
                 $"Невідомий статус замовлення {Id}")
         };
     }
@@ -109,8 +109,11 @@ public sealed class Order
     }
 
     // Відновлення сутності з DTO
-    public static Order FromDto(OrderDto dto)
+    public static Order FromDto(OrderDto dto) => FromDto(dto, CancellationToken.None);
+
+    public static Order FromDto(OrderDto dto, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(dto);
 
         if (dto.Lines is null)
@@ -122,6 +125,7 @@ public sealed class Order
 
         foreach (OrderLineDto line in dto.Lines)
         {
+            ct.ThrowIfCancellationRequested();
             OrderLine validated = OrderLine.FromDto(line);
 
             order.AddLine(
@@ -131,6 +135,7 @@ public sealed class Order
                 validated.Quantity);
         }
 
+        ct.ThrowIfCancellationRequested();
         // Відновлення статусу через доменні методи
         switch (dto.Status)
         {
@@ -146,9 +151,7 @@ public sealed class Order
                 break;
 
             default:
-                throw new ArgumentException(
-                    $"Невідомий статус замовлення: {dto.Status}",
-                    nameof(dto));
+                throw new DomainException($"Невідомий статус замовлення: {dto.Status}");
         }
 
         return order;

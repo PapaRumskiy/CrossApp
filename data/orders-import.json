@@ -1,0 +1,25 @@
+[
+  {
+    "Id": "IMPORT-801",
+    "CustomerId": "C-801",
+    "Status": "Confirmed",
+    "Lines": [
+      { "ProductId": "P-801", "Name": "Клавіатура", "Price": 1250.00, "Quantity": 1 },
+      { "ProductId": "P-802", "Name": "Кабель", "Price": 90.50, "Quantity": 2 }
+    ]
+  },
+  {
+    "Id": "IMPORT-802",
+    "CustomerId": "C-802",
+    "Status": "Draft",
+    "Lines": [
+      { "ProductId": "P-803", "Name": "Миша", "Price": 450.50, "Quantity": 2 }
+    ]
+  },
+  {
+    "Id": "IMPORT-803",
+    "CustomerId": "C-801",
+    "Status": "Cancelled",
+    "Lines": []
+  }
+]

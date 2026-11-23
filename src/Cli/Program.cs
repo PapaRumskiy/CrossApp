@@ -3,6 +3,12 @@ using Core.Import;
 using Core.Services;
 using Core.Storage;
 
+if (args is ["--lab08", ..])
+{
+    Console.OutputEncoding = System.Text.Encoding.UTF8;
+    return await Lab08Demo.RunAsync(args);
+}
+
 if (ReportCommands.CanHandle(args))
 {
     Console.OutputEncoding = System.Text.Encoding.UTF8;

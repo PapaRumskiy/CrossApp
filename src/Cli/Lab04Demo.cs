@@ -225,7 +225,7 @@ internal static class Lab04Demo
             Console.WriteLine(
                 $" {title}: {ex.GetType().Name} — {ex.Message}");
         }
-        catch (InvalidOperationException ex)
+        catch (DomainException ex)
         {
             Console.WriteLine(
                 $" {title}: {ex.GetType().Name} — {ex.Message}");

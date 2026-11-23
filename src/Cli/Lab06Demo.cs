@@ -76,7 +76,7 @@ internal static class Lab06Demo
         {
             service.AddLine(id, "P-602", "Миша", 300m, 1);
         }
-        catch (InvalidOperationException ex)
+        catch (DomainException ex)
         {
             rejected = true;
             Console.WriteLine($"Очікуваний виняток — {ex.Message}");

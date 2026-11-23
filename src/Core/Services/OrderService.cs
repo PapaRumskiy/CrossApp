@@ -20,7 +20,7 @@ public sealed class OrderService(IOrderStore store, INotificationSink? sink)
         {
             var orders = _store.List();
             if (orders.Any(existing => StringComparer.OrdinalIgnoreCase.Equals(existing.Id, order.Id)))
-                throw new InvalidOperationException($"Замовлення {order.Id} вже існує.");
+                throw new DomainException($"Замовлення {order.Id} вже існує.");
 
             CustomerOrderService.EnsureCanRegister(orders, order.CustomerId);
             _store.Add(order);
@@ -59,6 +59,75 @@ public sealed class OrderService(IOrderStore store, INotificationSink? sink)
     {
         ArgumentNullException.ThrowIfNull(predicate);
         return All().Where(predicate).ToArray();
+    }
+
+    /// <summary>Imports a validated batch and reports the percentage of records processed.</summary>
+    public async Task<int> ImportAsync(
+        IOrderImporter importer, string path, CancellationToken ct = default, IProgress<int>? progress = null)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+        ct.ThrowIfCancellationRequested();
+        progress?.Report(0);
+        var orders = await importer.LoadAsync(path, ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+
+        int added = 0;
+        int lastPercent = 0;
+        for (int i = 0; i < orders.Count; i++)
+        {
+            if (TryImport(orders[i], ct))
+                added++;
+
+            int percent = (int)((i + 1L) * 100 / orders.Count);
+            if (percent != lastPercent)
+            {
+                progress?.Report(percent);
+                lastPercent = percent;
+            }
+        }
+
+        if (orders.Count == 0)
+            progress?.Report(100);
+
+        return added;
+    }
+
+    /// <summary>Imports records as they arrive and reports their running processed count.</summary>
+    public async Task<int> ImportStreamAsync(
+        IStreamingOrderImporter importer, string path, CancellationToken ct = default, IProgress<int>? processed = null)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+        ct.ThrowIfCancellationRequested();
+        processed?.Report(0);
+        int added = 0;
+        int count = 0;
+
+        await foreach (Order order in importer.StreamAsync(path, ct).WithCancellation(ct).ConfigureAwait(false))
+        {
+            if (TryImport(order, ct))
+                added++;
+
+            processed?.Report(++count);
+        }
+
+        ct.ThrowIfCancellationRequested();
+        return added;
+    }
+
+    private bool TryImport(Order order, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            if (_store.GetById(order.Id) is not null)
+                return false;
+
+            ct.ThrowIfCancellationRequested();
+            _store.Add(order);
+        }
+
+        RaiseChanged(order, OrderChangeKind.Created);
+        return true;
     }
 
     private void Change(string id, OrderChangeKind kind, Action<Order> operation)

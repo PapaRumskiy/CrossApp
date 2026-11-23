@@ -31,10 +31,13 @@ CrossApp/
 │   ├── sample.csv
 │   ├── sample.json
 │   ├── sample-mixed.csv
+│   ├── orders-import.json
 │   └── orders.json (створюється в режимі --lab05 --file)
 ├── logs/ (створюється в режимі --lab06)
 │   ├── app.log
 │   └── sink.log
+├── tests/
+│   └── Core.Tests/
 └── src/
     ├── Core/
     │   ├── Core.csproj
@@ -42,7 +45,9 @@ CrossApp/
     │   ├── SampleData.cs
     │   ├── Abstractions/
     │   │   ├── IOrderStore.cs
-    │   │   └── INotificationSink.cs
+    │   │   ├── INotificationSink.cs
+    │   │   ├── IOrderImporter.cs
+    │   │   └── IStreamingOrderImporter.cs
     │   ├── Dto/
     │   │   ├── ProductDto.cs
     │   │   ├── WarehouseDto.cs
@@ -51,6 +56,7 @@ CrossApp/
     │   │   └── OrderLineDto.cs
     │   ├── Domain/
     │   │   ├── Customer.cs
+    │   │   ├── DomainException.cs
     │   │   ├── Order.cs
     │   │   ├── OrderLine.cs
     │   │   └── OrderStatus.cs
@@ -73,13 +79,15 @@ CrossApp/
     │   └── Storage/
     │       ├── InMemoryOrderStore.cs
     │       ├── FileOrderStore.cs
-    │       └── CachingOrderStore.cs
+    │       ├── CachingOrderStore.cs
+    │       └── JsonOrderImporter.cs
     └── Cli/
         ├── Cli.csproj
         ├── Program.cs
         ├── Lab04Demo.cs
         ├── Lab05Demo.cs
         ├── Lab06Demo.cs
+        ├── Lab08Demo.cs
         ├── ReportCommands.cs
         ├── StoreFactory.cs
         └── Notifications/
@@ -279,11 +287,11 @@ P;P-202;Keyboard;2500.00
 | Назва товару обов'язкова | ArgumentException |
 | Ціна товару не може бути від'ємною | ArgumentOutOfRangeException |
 | Кількість товару повинна бути більшою за нуль | ArgumentOutOfRangeException |
-| Порожнє замовлення не можна підтвердити | InvalidOperationException |
-| Не можна додавати позиції до підтвердженого замовлення | InvalidOperationException |
-| Не можна повторно підтверджувати замовлення | InvalidOperationException |
-| Підтверджене замовлення не можна скасувати | InvalidOperationException |
-| Повторне скасування заборонене | InvalidOperationException |
+| Порожнє замовлення не можна підтвердити | DomainException |
+| Не можна додавати позиції до підтвердженого замовлення | DomainException |
+| Не можна повторно підтверджувати замовлення | DomainException |
+| Підтверджене замовлення не можна скасувати | DomainException |
+| Повторне скасування заборонене | DomainException |
 
 Усі перевірки виконуються перед зміною стану об'єкта.
 
@@ -417,6 +425,33 @@ DTO використовуються для передавання й збері
 
 Проміжний список у цьому вимірюванні додає виділення пам’яті та окремий прохід по відібраних записах. Лічильник показує виділені байти потоку під час запиту. Час залежить від середовища та навантаження. Матеріалізація має сенс, коли потрібен знімок або багаторазове читання результату.
 
+## Асинхронний імпорт замовлень
+
+`--lab08` передає `CancellationToken` від CLI через `OrderService` до `JsonOrderImporter`. `IOrderImporter.LoadAsync` відкриває асинхронний `FileStream`, викликає `JsonSerializer.DeserializeAsync` для масиву `OrderDto` і перевіряє кожен запис через `Order.FromDto`. Вхідним прикладом є `data/orders-import.json`. Усі записи пакетного імпорту валідуються до першого збереження.
+
+`IStreamingOrderImporter.StreamAsync` використовує `DeserializeAsyncEnumerable`, `await foreach` і `[EnumeratorCancellation]`. Сервіс обробляє записи у міру надходження. Парсер утримує буфер і поточні записи, а пам’ять сховища зростає відповідно до його реалізації. У разі помилки в пізнішому записі потоковий імпорт може вже зберегти попередні записи.
+
+Обидва режими відновлюють готові агрегати, перевіряють їхні доменні інваріанти та пропускають наявні Id без урахування регістру. Ліміт активних замовлень залишається правилом реєстрації нового замовлення в `CreateOrder`. Сервіс зберігає імпортований запис через `IOrderStore.Add` і після повернення цього методу публікує одну подію `Created`. Записи сховища залишаються синхронними. Скасування діє кооперативно перед читанням, у JSON-десеріалізації, при відновленні позицій і між записами. Уже збережені зміни можна залишити в сховищі та без дублікатів повторити імпорт.
+
+`DomainException` описує порушення бізнес-правил, наприклад повторне підтвердження. Прямі виклики з невалідною ціною або кількістю дають `ArgumentException` чи `ArgumentOutOfRangeException`. Під час відновлення запису імпортер додає його номер з одиниці у `DomainException` та зберігає причину в `InnerException`. Відсутній файл, помилка файлової системи, некоректний JSON і скасування мають окремі типи винятків.
+
+CLI пов’язує токени користувача і таймауту через `CancellationTokenSource.CreateLinkedTokenSource`. `Ctrl+C` встановлює токен користувача, а `--cancel-after-ms N` запускає таймер. Тимчасовий обробник `Console.CancelKeyPress` відписується в `finally`. Код виходу ручного скасування або `--cancel-before` — 130, таймауту — 124. `--stream --delay-ms N` додає контрольовану паузу між записами для демонстрації.
+
+`IProgress<int>` у пакетному режимі передає відсоток оброблених записів. Запис, пропущений через дублікат, теж оброблений. Три записи дають 0%, 33%, 66% і 100%, а порожній масив дає 0% і 100%. Потоковий режим передає кількість оброблених записів, бо загальний розмір невідомий. Після скасування виводиться повідомлення, а лічильник зберігає останнє досягнуте значення.
+
+### Unit-тести та покриття
+
+`tests/Core.Tests` використовує xUnit і .NET 10 та має посилання на Core. Сценарії використовують нові екземпляри сховища й фіксовані дані. Тести файлового імпортера пишуть власний JSON у тимчасовий каталог і видаляють його у `finally`. Тест таймауту запускає таймер лише після сигналу від fake-імпортера, який очікує на скасування.
+
+```powershell
+dotnet test
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+Збір виконує `coverlet.collector`. Файл із результатами `coverage.cobertura.xml` створюється в `tests/Core.Tests/TestResults`. Фактичний запуск дав 33 пройдені тести, 0 невдалих і 0 пропущених. Пакет Core має **51,63% покриття рядків** (459 із 889) і **43,62% покриття гілок** (106 із 243).
+
+Тести зосереджені на інваріантах, подіях, звітах і новому імпорті. `FileOrderStore`, старі CSV/JSON-імпортери та LINQ-бенчмарк перевірено окремими запусками CLI, які не входять до звіту Coverlet. Наступні корисні сценарії для автоматизації — відмови реального файлового сховища, крайні випадки старих імпортерів та дані середовища.
+
 ## Запуск
 
 Усі команди виконуються з кореневого каталогу проєкту.
@@ -494,6 +529,18 @@ dotnet run -c Release --project src/Cli -- report-benchmark
 dotnet run --project src/Cli -- report-sum --file
 dotnet run --project src/Cli -- --file report-top
 ```
+
+### Асинхронний імпорт замовлень
+
+```powershell
+dotnet run --project src/Cli -- --lab08 --import data/orders-import.json
+dotnet run --project src/Cli -- --lab08 --import data/orders-import.json --repeat
+dotnet run --project src/Cli -- --lab08 --import data/orders-import.json --stream
+dotnet run --project src/Cli -- --lab08 --import data/orders-import.json --cancel-before
+dotnet run --project src/Cli -- --lab08 --import data/orders-import.json --stream --delay-ms 1000 --cancel-after-ms 600
+```
+
+`--repeat` повторно читає JSON у тому самому екземплярі сховища, тож другий прохід додає 0 записів. `--file` зберігає імпортовані замовлення в `data/orders.json` для наступних запусків. Шлях до вхідного файлу задається окремо.
 
 ### Release
 
@@ -578,3 +625,4 @@ docker run --rm -v ${PWD}:/src -w /src mcr.microsoft.com/dotnet/sdk:10.0 dotnet 
 - Кешувальний декоратор, пошук за предикатом і фабрику сховищ.
 - Доменні події, сповіщення через DI та callback імпорту CSV.
 - LINQ-звіти з фільтрами, групуванням, агрегатами, рейтингами й зведенням клієнтів.
+- Пакетний і потоковий async-імпорт, кооперативне скасування, прогрес, доменні винятки й тести Core.

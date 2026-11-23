@@ -50,7 +50,7 @@ internal static class Lab05Demo
         PrintMatches($"Клієнт {customer.Id}", service.Find(item => item.CustomerId == customer.Id));
         PrintMatches("Сума понад 2000", service.Find(item => item.Total > 2000m));
 
-        ShowExpectedError<InvalidOperationException>(() => service.CreateOrder(DemoId, customer.Id));
+        ShowExpectedError<DomainException>(() => service.CreateOrder(DemoId, customer.Id));
         string missingId = "LAB05-MISSING";
         while (service.Find(missingId) is not null)
             missingId += "-X";
